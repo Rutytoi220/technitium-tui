@@ -17,11 +17,20 @@ A full-featured, keyboard-first (`HJKL`) terminal UI for **[Technitium DNS Serve
 
 ## Installation
 
+### One-line install (Linux / macOS)
 ```bash
-git clone https://github.com/Rutytoi220/technitium-tui.git
-cd technitium-tui
-uv tool install .
+curl -fsSL https://raw.githubusercontent.com/Rutytoi220/technitium-tui/main/install.sh | bash
 ```
+
+### Using `uv` or `pipx` directly from GitHub
+```bash
+uv tool install git+https://github.com/Rutytoi220/technitium-tui
+# or
+pipx install git+https://github.com/Rutytoi220/technitium-tui
+```
+
+### Pre-built wheel / tarball
+Download from **[GitHub Releases](https://github.com/Rutytoi220/technitium-tui/releases)**.
 
 Run:
 ```bash
