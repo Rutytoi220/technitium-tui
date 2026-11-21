@@ -52,7 +52,32 @@ class TechnitiumAPI:
 
     # --- Auth ---
     def login(self, server_url: str, username: str, password: str) -> dict[str, Any]:
+        """Mint a non-expiring API token via /api/user/createToken (fallback to /api/user/login)."""
+        import socket as _socket
+
         self.configure(server_url, "")
+        token_name = f"tnt-tui-{_socket.gethostname()}"
+
+        # 1. Try creating a permanent non-expiring API token so the user never has to re-login
+        try:
+            resp = self._client.get(
+                f"{self.base_url}/api/user/createToken",
+                params={"user": username, "pass": password, "tokenName": token_name},
+            )
+            if resp.status_code == 200:
+                body = resp.json()
+                if body.get("status") == "ok" and body.get("token"):
+                    self.token = str(body["token"])
+                    try:
+                        info = self.session_info()
+                        body["info"] = info.get("info") or {}
+                    except Exception:
+                        pass
+                    return body
+        except Exception:
+            pass
+
+        # 2. Fallback to standard session login
         url = f"{self.base_url}/api/user/login"
         resp = self._client.get(
             url,
