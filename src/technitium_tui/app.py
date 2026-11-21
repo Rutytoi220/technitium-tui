@@ -287,6 +287,7 @@ class TechnitiumApp(App):
 
     BINDINGS = [
         Binding("q", "quit_app", "Quit", show=False),
+        Binding("ctrl+c", "quit_app", "Quit", show=False, priority=True),
         Binding("question_mark", "show_help", "Help", show=False),
         Binding("r", "refresh_view", "Refresh", show=False),
         Binding("tab", "toggle_sidebar", "Switch Pane", show=False),
