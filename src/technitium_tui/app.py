@@ -424,6 +424,7 @@ class TechnitiumApp(App):
 
     @work(thread=True)
     def _do_login(self, url: str, user: str, pw: str, tok: str) -> None:
+        self.call_from_thread(self._set_status, f"Connecting to {url}…")
         try:
             if tok:
                 self.api.configure(url, tok)

@@ -20,15 +20,17 @@ class LoginModal(ModalScreen[tuple[str, str, str, str] | None]):
     CSS = f"""
     LoginModal {{ {MODAL_BASE_CSS} }}
     #box {{
-        width: 60;
+        width: 58;
         height: auto;
+        max-height: 92%;
+        overflow-y: auto;
         padding: 1 2;
         background: #161822;
         border: round #4c8bf5;
     }}
-    #title {{ text-style: bold; color: #eef0f7; margin-bottom: 1; }}
-    .lbl {{ color: #858ba3; margin-top: 1; }}
-    #err {{ color: #ff6b81; margin-top: 1; height: auto; }}
+    #title {{ text-style: bold; color: #eef0f7; }}
+    .lbl {{ color: #858ba3; }}
+    #err {{ color: #ff6b81; height: auto; }}
     #btns {{ margin-top: 1; height: 3; align-horizontal: right; }}
     #btns Button {{ margin-left: 1; }}
     """
@@ -46,14 +48,14 @@ class LoginModal(ModalScreen[tuple[str, str, str, str] | None]):
             yield Input(value=self._url, placeholder="http://localhost:5380", id="in-url")
             yield Label("Username", classes="lbl")
             yield Input(value=self._user, placeholder="admin", id="in-user")
-            yield Label("Password (or leave empty if using API Token below)", classes="lbl")
+            yield Label("Password (Enter to connect)", classes="lbl")
             yield Input(password=True, placeholder="••••••••", id="in-pass")
             yield Label("API Token (optional — overrides password)", classes="lbl")
             yield Input(password=True, placeholder="optional API token", id="in-token")
             yield Static(self._err, id="err")
             with Horizontal(id="btns"):
-                yield Button("Cancel", id="cancel")
                 yield Button("Connect", variant="primary", id="ok")
+                yield Button("Cancel", id="cancel")
 
     def on_mount(self) -> None:
         if not self._url:
