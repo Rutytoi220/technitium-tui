@@ -35,7 +35,7 @@ class LoginModal(ModalScreen[tuple[str, str, str, str] | None]):
 
     def __init__(self, server_url: str = "", username: str = "admin", error_msg: str = "") -> None:
         super().__init__()
-        self._url = server_url or "http://100.100.33.5:5380"
+        self._url = server_url
         self._user = username or "admin"
         self._err = error_msg
 
@@ -43,7 +43,7 @@ class LoginModal(ModalScreen[tuple[str, str, str, str] | None]):
         with Vertical(id="box"):
             yield Static("Connect to Technitium DNS Server", id="title")
             yield Label("Server URL", classes="lbl")
-            yield Input(value=self._url, placeholder="http://100.100.33.5:5380", id="in-url")
+            yield Input(value=self._url, placeholder="http://localhost:5380", id="in-url")
             yield Label("Username", classes="lbl")
             yield Input(value=self._user, placeholder="admin", id="in-user")
             yield Label("Password (or leave empty if using API Token below)", classes="lbl")
@@ -56,7 +56,10 @@ class LoginModal(ModalScreen[tuple[str, str, str, str] | None]):
                 yield Button("Connect", variant="primary", id="ok")
 
     def on_mount(self) -> None:
-        self.query_one("#in-pass", Input).focus()
+        if not self._url:
+            self.query_one("#in-url", Input).focus()
+        else:
+            self.query_one("#in-pass", Input).focus()
 
     def _submit(self) -> None:
         url = self.query_one("#in-url", Input).value.strip().rstrip("/")

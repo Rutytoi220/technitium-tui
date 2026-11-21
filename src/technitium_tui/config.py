@@ -12,7 +12,7 @@ CONFIG_FILE = CONFIG_DIR / "config.json"
 
 @dataclass
 class AppConfig:
-    server_url: str = "http://100.100.33.5:5380"
+    server_url: str = ""
     username: str = "admin"
     token: str = ""
     stats_type: str = "LastDay"  # LastHour, LastDay, LastWeek, LastMonth, LastYear

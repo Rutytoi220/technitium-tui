@@ -288,7 +288,7 @@ class TechnitiumApp(App):
     }
 
     #status-line {
-        height: 1;
+        height: 2;
         padding: 0 2;
         border-top: solid #2a2d3d;
         background: transparent;
@@ -362,7 +362,7 @@ class TechnitiumApp(App):
             with Vertical(id="main-pane"):
                 with Horizontal(id="top-bar"):
                     yield Static("Dashboard", id="view-title")
-                    yield Static(f"[{self.cfg.stats_type}]", id="top-badge")
+                    yield Static(f"{self.cfg.stats_type}", id="top-badge", markup=False)
                 yield Input(placeholder="Filter rows… (Enter to apply, Esc to clear)", id="filter-bar")
                 yield Static("", id="dash-summary")
                 with Horizontal(id="dns-client-bar"):
@@ -416,6 +416,8 @@ class TechnitiumApp(App):
 
     def _handle_login(self, result: tuple[str, str, str, str] | None) -> None:
         if result is None:
+            if not self.cfg.token:
+                self._set_status("Not connected — press L to log in to your Technitium DNS server")
             return
         url, user, pw, tok = result
         self._do_login(url, user, pw, tok)
