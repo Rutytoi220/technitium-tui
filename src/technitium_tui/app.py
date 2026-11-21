@@ -13,6 +13,7 @@ from textual.widgets import Button, DataTable, Input, Label, ListItem, ListView,
 
 from .api import TechnitiumAPI, TechnitiumError
 from .config import AppConfig
+from .settings_meta import HIDDEN_SETTINGS, SETTINGS_TABS, get_setting_meta
 from .modals import (
     AddRecordModal,
     ConfirmModal,
@@ -43,18 +44,6 @@ DASH_SUBVIEWS = [
     ("topDomains", "Top Domains"),
     ("topBlocked", "Top Blocked Domains"),
     ("topClients", "Top Clients"),
-]
-
-SETTINGS_SECTIONS: list[tuple[str, str, tuple[str, ...]]] = [
-    ("all", "All Settings", ()),
-    ("general", "General", ("dnsServer", "defaultRecord", "defaultResponsible", "useSoa", "minSoa", "preferIPv6", "udpPayload", "dnssec", "eDns", "qname")),
-    ("web", "Web Service", ("webService",)),
-    ("protocols", "Optional Protocols", ("enableDnsOver", "dnsTls", "optionalProtocols")),
-    ("recursion", "Recursion", ("recursion", "randomizeName", "qnameMinimization", "nsRevalidation", "resolver")),
-    ("cache", "Cache", ("saveCache", "serveStale", "cache")),
-    ("blocking", "Blocking", ("enableBlocking", "allowTxtBlocking", "blocking", "customBlocking", "blockList")),
-    ("forwarders", "Proxy & Forwarders", ("proxy", "forwarder", "concurrentForwarding")),
-    ("logging", "Logging", ("enableLogging", "ignoreResolverLogs", "logQueries", "useLocalTime", "logFolder", "maxLogFileDays", "enableInMemoryStats", "maxStatFileDays")),
 ]
 
 SPARK_CHARS = "▁▂▃▄▅▆▇█"
@@ -500,7 +489,7 @@ class TechnitiumApp(App):
         log_view = self.query_one("#log-viewer", Static)
         table = self.query_one("#content-table", DataTable)
 
-        dash.set_class(self.current_tab == "dashboard", "visible")
+        dash.set_class(self.current_tab in ("dashboard", "settings"), "visible")
         dns_bar.set_class(self.current_tab == "dnsclient", "visible")
         show_log = self.current_tab == "logs" and self.logs_sub == "viewer"
         log_view.set_class(show_log, "visible")
@@ -794,23 +783,45 @@ class TechnitiumApp(App):
         self._set_status(f"{len(apps)} store apps • Enter/a: Install selected app  v: Back to Installed")
 
     def _render_settings(self, data: dict[str, Any]) -> None:
-        sec_key, sec_label, prefixes = SETTINGS_SECTIONS[self.settings_sec_idx % len(SETTINGS_SECTIONS)]
+        sec_key, sec_label = SETTINGS_TABS[self.settings_sec_idx % len(SETTINGS_TABS)]
         self.query_one("#view-title", Static).update(f"Settings  •  {sec_label}")
-        self._update_badge("v: Section • Enter/e: Edit • U: Update Blocklists")
-        table = self._reset_table(["Setting", "Value", "Type"])
-        for k in sorted(data.keys()):
-            if k in ("version", "uptimestamp"):
+
+        # Build clean section pill strip in dash-summary slot!
+        pills = []
+        for idx, (_, lbl) in enumerate(SETTINGS_TABS):
+            if idx == self.settings_sec_idx % len(SETTINGS_TABS):
+                pills.append(f"[on #4c8bf5] [b]{lbl}[/] [/]")
+            else:
+                pills.append(f"[dim] {lbl} [/]")
+        self.query_one("#dash-summary", Static).update(" ".join(pills))
+        self.query_one("#dash-summary", Static).add_class("visible")
+        self._update_badge("[ / ]: Section • Enter/e: Edit • U: Update Blocklists")
+
+        table = self._reset_table(["Setting", "Value", "Description"])
+        rows: list[tuple[str, str, Any, str]] = []
+        for k, v in data.items():
+            if k in HIDDEN_SETTINGS:
                 continue
-            if not _match_section(k, prefixes):
+            s_sec, label, desc = get_setting_meta(k)
+            if sec_key != "all" and s_sec != sec_key:
                 continue
-            v = data[k]
             vstr = fmt_setting_val(v)
-            if not self._passes_filter(k, vstr):
+            if not self._passes_filter(k, label, vstr, desc):
                 continue
-            tname = type(v).__name__
-            table.add_row(k, vstr[:90], tname)
-            self.rows_meta.append(("setting", (k, v)))
-        self._set_status(f"{len(self.rows_meta)} settings shown ({sec_label}) • Enter/e: Toggle/Edit  v: Cycle section  /: Filter  T: Temp disable  U: Update blocklists")
+            rows.append((k, label, v, desc))
+
+        rows.sort(key=lambda r: r[1].lower())
+        for k, label, v, desc in rows:
+            if isinstance(v, bool):
+                val_display = "[#51cf66]● ON[/]" if v else "[dim]○ OFF[/]"
+            else:
+                val_display = fmt_setting_val(v)[:42]
+            table.add_row(label, val_display, desc)
+            self.rows_meta.append(("setting", (k, v, label, desc)))
+
+        self._set_status(
+            f"{len(rows)} settings in {sec_label} • [ / ] or v: Switch section  Enter/e: Toggle/Edit  /: Search  T: Temp disable  U: Update blocklists"
+        )
 
     def _render_dhcp_leases(self, data: dict[str, Any]) -> None:
         leases = data.get("leases") or []
@@ -1101,20 +1112,26 @@ class TechnitiumApp(App):
         fb.focus()
 
     def action_prev_range(self) -> None:
-        if self.current_tab != "dashboard":
-            return
-        idx = (STATS_RANGES.index(self.cfg.stats_type) - 1) % len(STATS_RANGES)
-        self.cfg.stats_type = STATS_RANGES[idx]
-        self.cfg.save()
-        self._load_tab()
+        if self.current_tab == "dashboard":
+            idx = (STATS_RANGES.index(self.cfg.stats_type) - 1) % len(STATS_RANGES)
+            self.cfg.stats_type = STATS_RANGES[idx]
+            self.cfg.save()
+            self._load_tab()
+        elif self.current_tab == "settings":
+            self.settings_sec_idx = (self.settings_sec_idx - 1) % len(SETTINGS_TABS)
+            if self._last_settings:
+                self._render_settings(self._last_settings)
 
     def action_next_range(self) -> None:
-        if self.current_tab != "dashboard":
-            return
-        idx = (STATS_RANGES.index(self.cfg.stats_type) + 1) % len(STATS_RANGES)
-        self.cfg.stats_type = STATS_RANGES[idx]
-        self.cfg.save()
-        self._load_tab()
+        if self.current_tab == "dashboard":
+            idx = (STATS_RANGES.index(self.cfg.stats_type) + 1) % len(STATS_RANGES)
+            self.cfg.stats_type = STATS_RANGES[idx]
+            self.cfg.save()
+            self._load_tab()
+        elif self.current_tab == "settings":
+            self.settings_sec_idx = (self.settings_sec_idx + 1) % len(SETTINGS_TABS)
+            if self._last_settings:
+                self._render_settings(self._last_settings)
 
     def action_cycle_subview(self) -> None:
         if self.current_tab == "dashboard":
@@ -1122,7 +1139,7 @@ class TechnitiumApp(App):
             if self._last_stats:
                 self._render_dashboard(self._last_stats)
         elif self.current_tab == "settings":
-            self.settings_sec_idx = (self.settings_sec_idx + 1) % len(SETTINGS_SECTIONS)
+            self.settings_sec_idx = (self.settings_sec_idx + 1) % len(SETTINGS_TABS)
             if self._last_settings:
                 self._render_settings(self._last_settings)
         elif self.current_tab == "dhcp":
@@ -1231,20 +1248,23 @@ class TechnitiumApp(App):
                 self._run_bg("Converting to reserved…", lambda: self.api.convert_to_reserved(scope, hw), "Converted to Reserved")
 
     def _edit_setting(self, key: str, current_val: Any) -> None:
+        _, label, desc = get_setting_meta(key)
+        title = f"{label} ({key})"
         if isinstance(current_val, bool):
             new_val = not current_val
-            self._run_bg(f"Setting {key}={new_val}…", lambda: self.api.set_settings({key: new_val}), f"Saved {key} = {new_val}")
+            self._run_bg(f"Setting {label} -> {'ON' if new_val else 'OFF'}…", lambda: self.api.set_settings({key: new_val}), f"Saved {label} = {'ON' if new_val else 'OFF'}")
             return
         if isinstance(current_val, list):
             initial = "\n".join(str(x) for x in current_val)
+            hint = f"{desc} • One item per line • Ctrl+S to Save" if desc else "One item per line • Ctrl+S to Save"
             self.push_screen(
-                EditSettingModal(f"Edit Setting: {key}", initial, "One item per line • Ctrl+S to Save • Esc to Cancel"),
+                EditSettingModal(title, initial, hint),
                 lambda txt: self._save_list_setting(key, txt),
             )
             return
         self.push_screen(
-            InputModal(f"Edit Setting: {key}", str(current_val or ""), str(current_val if current_val is not None else "")),
-            lambda val: self._run_bg(f"Saving {key}…", lambda: self.api.set_settings({key: val}), f"Saved {key}")
+            InputModal(title, desc or str(current_val or ""), str(current_val if current_val is not None else "")),
+            lambda val: self._run_bg(f"Saving {label}…", lambda: self.api.set_settings({key: val}), f"Saved {label}")
             if val is not None
             else None,
         )
